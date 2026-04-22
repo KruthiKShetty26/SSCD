@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Symbol Table Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #13161e;
+    --surface2: #1a1e28;
+    --border: #252a38;
+    --border2: #2e3547;
+    --accent: #4f9eff;
+    --accent2: #7c3aed;
+    --green: #22c55e;
+    --amber: #f59e0b;
+    --pink: #ec4899;
+    --teal: #14b8a6;
+    --text: #e8ecf5;
+    --text2: #8b92a8;
+    --text3: #50566a;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Space Grotesk', sans-serif;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px; height: 54px;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 30px; height: 30px; border-radius: 7px;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #fff; font-family: var(--mono);
+  }
+  .logo-text { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; }
+  .logo-text span { color: var(--accent); }
+  .topbar-right { display: flex; align-items: center; gap: 8px; }
+  .badge-version {
+    font-size: 11px; font-family: var(--mono); color: var(--text3);
+    border: 1px solid var(--border); border-radius: 99px; padding: 2px 10px;
+  }
+
+  .app { display: grid; grid-template-columns: 420px 1fr; height: calc(100vh - 54px); overflow: hidden; }
+
+  .left-panel { border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .panel-header {
+    padding: 14px 18px 10px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .panel-title { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--text2); text-transform: uppercase; }
+  .sample-btns { display: flex; gap: 5px; }
+  .sample-btn {
+    font-size: 10px; font-family: var(--sans); font-weight: 500;
+    padding: 3px 9px; border-radius: 99px;
+    border: 1px solid var(--border2); background: transparent;
+    color: var(--text2); cursor: pointer; transition: all .15s;
+  }
+  .sample-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  #src {
+    flex: 1; resize: none; border: none; outline: none;
+    background: var(--surface); color: var(--text);
+    font-family: var(--mono); font-size: 13px; line-height: 1.75;
+    padding: 16px 18px; tab-size: 2;
+  }
+  #src::placeholder { color: var(--text3); }
+
+  .action-bar {
+    padding: 12px 18px; border-top: 1px solid var(--border);
+    display: flex; gap: 8px; align-items: center; background: var(--surface);
+  }
+  .btn-analyze {
+    flex: 1; font-family: var(--sans); font-size: 13px; font-weight: 600;
+    padding: 9px 18px; border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    color: #fff; border: none; cursor: pointer; transition: opacity .15s;
+  }
+  .btn-analyze:hover { opacity: .85; }
+  .btn-analyze:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-clear {
+    font-family: var(--sans); font-size: 13px; font-weight: 500;
+    padding: 9px 14px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border2); background: transparent;
+    color: var(--text2); cursor: pointer; transition: all .15s;
+  }
+  .btn-clear:hover { border-color: #ef4444; color: #ef4444; }
+
+  .right-panel { display: flex; flex-direction: column; overflow: hidden; }
+
+  .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--border); background: var(--surface); }
+  .stat-cell { padding: 12px 18px; border-right: 1px solid var(--border); }
+  .stat-cell:last-child { border-right: none; }
+  .stat-val { font-size: 22px; font-weight: 700; font-family: var(--mono); color: var(--text); }
+  .stat-val.accent { color: var(--accent); }
+  .stat-val.green  { color: var(--green); }
+  .stat-val.amber  { color: var(--amber); }
+  .stat-val.pink   { color: var(--pink); }
+  .stat-label { font-size: 10px; font-weight: 600; letter-spacing: .07em; color: var(--text3); text-transform: uppercase; margin-top: 2px; }
+
+  .tabs-bar { display: flex; align-items: center; padding: 0 18px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .tab-btn {
+    font-family: var(--sans); font-size: 12px; font-weight: 500;
+    padding: 11px 16px; background: none; border: none; border-bottom: 2px solid transparent;
+    color: var(--text2); cursor: pointer; transition: all .15s; margin-bottom: -1px;
+  }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+
+  .tok-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+  .tok {
+    font-family: var(--mono); font-size: 11px; padding: 3px 9px;
+    border-radius: 99px; border: 1px solid transparent; cursor: default; transition: transform .1s;
+  }
+  .tok:hover { transform: scale(1.05); }
+  .tok-KEYWORD  { background: #1e1040; border-color: #4c1d95; color: #a78bfa; }
+  .tok-ID       { background: #042f2e; border-color: #134e4a; color: #5eead4; }
+  .tok-INT, .tok-FLOAT { background: #1c1204; border-color: #451a03; color: #fbbf24; }
+  .tok-OP       { background: #1a1010; border-color: #431407; color: #f97316; }
+  .tok-PUNCT    { background: #0f1117; border-color: var(--border2); color: var(--text3); }
+  .tok-STRING, .tok-CHAR { background: #130e1a; border-color: #4a044e; color: #e879f9; }
+  .tok-error, .tok-ERROR, .tok-ERROR_OP { background: #1f0a0a; border-color: #ef4444; color: #f87171; animation: blink-border 1.2s ease infinite; }
+  @keyframes blink-border { 0%,100%{border-color:#ef4444} 50%{border-color:#7f1d1d} }
+  tr.row-unknown td { background: #1a0808 !important; }
+  tr.row-unknown:hover td { background: #2d0e0e !important; }
+
+  .filter-bar {
+    display: flex; gap: 8px; padding: 10px 18px;
+    border-bottom: 1px solid var(--border); background: var(--surface); align-items: center; flex-wrap: wrap;
+  }
+  .search-box {
+    flex: 1; min-width: 160px; font-family: var(--sans); font-size: 13px;
+    padding: 7px 12px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border2); background: var(--surface2);
+    color: var(--text); outline: none; transition: border .15s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--text3); }
+  select.filter-sel {
+    font-family: var(--sans); font-size: 12px; padding: 7px 10px;
+    border-radius: var(--radius-sm); border: 1px solid var(--border2);
+    background: var(--surface2); color: var(--text2); outline: none; cursor: pointer;
+  }
+  .pill-filters { display: flex; gap: 5px; }
+  .pill {
+    font-size: 11px; font-weight: 500; padding: 4px 12px;
+    border-radius: 99px; border: 1px solid var(--border2);
+    background: transparent; color: var(--text2); cursor: pointer; transition: all .15s;
+  }
+  .pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .pill:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+
+  .table-scroll { flex: 1; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { position: sticky; top: 0; z-index: 10; }
+  th {
+    background: var(--surface2); color: var(--text3); font-size: 10px; font-weight: 600;
+    letter-spacing: .08em; text-transform: uppercase; padding: 9px 14px;
+    text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  td { padding: 9px 14px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  tr:hover td { background: var(--surface2); }
+  .num-col { color: var(--text3); font-family: var(--mono); font-size: 11px; }
+  .name-col { font-family: var(--mono); font-weight: 500; color: var(--text); }
+
+  .badge {
+    display: inline-flex; align-items: center;
+    font-size: 11px; font-weight: 600; font-family: var(--mono);
+    padding: 2px 9px; border-radius: 99px;
+  }
+  .b-int    { background: #1e3a5f; color: #60a5fa; }
+  .b-float  { background: #1a3a2a; color: #4ade80; }
+  .b-char   { background: #3b2000; color: #fb923c; }
+  .b-string { background: #2e1050; color: #c084fc; }
+  .b-bool   { background: #1a2e1a; color: #86efac; }
+  .b-void   { background: #1a1a2e; color: #818cf8; }
+  .b-double { background: #1a3a2a; color: #34d399; }
+  .b-fn     { background: #2d1a3e; color: #e879f9; }
+  .b-other  { background: var(--surface2); color: var(--text2); }
+  .bk-variable  { background: #0f2944; color: #38bdf8; }
+  .bk-function  { background: #2a0a3a; color: #d946ef; }
+  .bk-parameter { background: #1a2e10; color: #86efac; }
+  .bk-unknown   { background: #2d0a0a; color: #f87171; border: 1px solid #7f1d1d; }
+  .b-unknown    { background: #2d0a0a; color: #f87171; border: 1px solid #7f1d1d; }
+  .scope-global { color: var(--accent); font-family: var(--mono); font-size: 12px; }
+  .scope-local  { color: var(--teal);  font-family: var(--mono); font-size: 12px; }
+  .val-col  { font-family: var(--mono); font-size: 12px; color: var(--amber); }
+  .mem-col  { font-family: var(--mono); font-size: 12px; color: var(--text2); }
+  .line-col { font-family: var(--mono); font-size: 12px; color: var(--text3); }
+
+  .scope-node { margin-bottom: 18px; font-family: var(--mono); font-size: 13px; line-height: 2; }
+  .scope-name  { color: var(--accent); font-weight: 600; font-size: 14px; }
+  .scope-count { color: var(--text3); font-size: 11px; margin-left: 8px; }
+  .scope-sym   { color: var(--text2); padding-left: 16px; }
+  .scope-sym .sn { color: var(--teal); }
+  .scope-sym .st { color: var(--amber); }
+  .scope-sym .sk { color: var(--text3); font-size: 11px; }
+
+  .err-list { margin: 8px 18px 0; }
+  .err-item {
+    display: flex; align-items: center; gap: 8px;
+    background: #1f0a0a; border: 1px solid #7f1d1d; border-radius: var(--radius-sm);
+    color: #fca5a5; font-size: 12px; font-family: var(--mono);
+    padding: 8px 12px; margin-bottom: 6px;
+  }
+  .err-dot { width: 6px; height: 6px; border-radius: 50%; background: #ef4444; flex-shrink: 0; }
+
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; gap: 10px; color: var(--text3);
+  }
+  .empty-icon { font-size: 32px; opacity: .4; }
+  .empty-text { font-size: 14px; font-family: var(--sans); }
+
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,.2); border-top-color: #fff;
+    border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); }
+  .status-dot.online  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-dot.offline { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: 45vh 1fr; }
+    .left-panel { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo-icon">ST</div>
+    <div class="logo-text">Symbol<span>Table</span> Generator</div>
+  </div>
+  <div class="topbar-right">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text" style="font-size:11px;color:var(--text3)">Checking backend...</span>
+    <span class="badge-version">v1.0</span>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- LEFT: Code Input -->
+  <div class="left-panel">
+    <div class="panel-header">
+      <span class="panel-title">Source Code</span>
+      <div class="sample-btns">
+        <button class="sample-btn" onclick="loadSample('basic')">Basic</button>
+        <button class="sample-btn" onclick="loadSample('nested')">Nested</button>
+        <button class="sample-btn" onclick="loadSample('class')">Class</button>
+      </div>
+    </div>
+    <textarea id="src" spellcheck="false" placeholder="// Paste your C / C++ code here..."></textarea>
+    <div class="action-bar">
+      <button class="btn-analyze" id="analyze-btn" onclick="analyze()">&#9654; &nbsp;Analyze</button>
+      <button class="btn-clear" onclick="clearAll()">Clear</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: Output -->
+  <div class="right-panel">
+
+    <div class="stats-bar">
+      <div class="stat-cell">
+        <div class="stat-val accent" id="s-total">--</div>
+        <div class="stat-label">Total Symbols</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-val green" id="s-vars">--</div>
+        <div class="stat-label">Variables</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-val amber" id="s-fns">--</div>
+        <div class="stat-label">Functions</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-val pink" id="s-scopes">--</div>
+        <div class="stat-label">Scopes</div>
+      </div>
+    </div>
+
+    <div class="tabs-bar">
+      <button class="tab-btn active" onclick="switchTab('symtab',this)">Symbol Table</button>
+      <button class="tab-btn" onclick="switchTab('tokens',this)">Tokens</button>
+      <button class="tab-btn" onclick="switchTab('scope',this)">Scope Tree</button>
+    </div>
+
+    <div id="err-list" class="err-list"></div>
+
+    <!-- Tab: Symbol Table -->
+    <div id="tab-symtab" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+      <div class="filter-bar">
+        <input class="search-box" type="text" id="search" placeholder="Search by name, type, scope..." oninput="renderTable()">
+        <select class="filter-sel" id="type-filter" onchange="renderTable()">
+          <option value="">All types</option>
+          <option value="int">int</option>
+          <option value="float">float</option>
+          <option value="char">char</option>
+          <option value="double">double</option>
+          <option value="string">string</option>
+          <option value="bool">bool</option>
+          <option value="void">void</option>
+          <option value="function">function</option>
+        </select>
+        <div class="pill-filters">
+          <button class="pill active" onclick="setScopeF('',this)">All</button>
+          <button class="pill" onclick="setScopeF('global',this)">Global</button>
+          <button class="pill" onclick="setScopeF('local',this)">Local</button>
+          <button class="pill" onclick="setScopeF('parameter',this)">Param</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <div id="symtab-content">
+          <div class="empty-state" style="height:300px">
+            <div class="empty-icon">&#8997;</div>
+            <div class="empty-text">Analyze some code to see the symbol table</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Tokens -->
+    <div id="tab-tokens" style="display:none;flex:1;overflow-y:auto;padding:14px 18px">
+      <div id="tok-content">
+        <div class="empty-state" style="height:300px">
+          <div class="empty-icon">&#10216;&#10217;</div>
+          <div class="empty-text">Tokens will appear here after analysis</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Scope Tree -->
+    <div id="tab-scope" style="display:none;flex:1;overflow-y:auto;padding:18px">
+      <div id="scope-content">
+        <div class="empty-state" style="height:300px">
+          <div class="empty-icon">&#8862;</div>
+          <div class="empty-text">Scope tree will appear here after analysis</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const BACKEND = 'http://localhost:5000';
+let symbols = [], scopeFilter = '';
+
+const samples = {
+  basic: `int globalVar = 100;\nfloat pi = 3.14159;\nbool flag = true;\n\nint add(int a, int b) {\n  int result = a + b;\n  return result;\n}\n\nint main() {\n  int x = 10;\n  int y = 20;\n  char grade = 'A';\n  string name = "Alice";\n  float avg = 95.5;\n  int total = add(x, y);\n  return 0;\n}`,
+  nested: `int counter = 0;\n\nvoid outer(int n) {\n  int outerVar = n * 2;\n  float ratio = 0.5;\n\n  void inner(int m) {\n    int innerVar = m + outerVar;\n    char tag = 'X';\n  }\n}\n\nint main() {\n  int i = 0;\n  int limit = 10;\n  bool done = false;\n  return 0;\n}`,
+  class: `string appName = "GradeBook";\nint maxStudents = 50;\n\nclass Student {\n  string name;\n  int rollNo;\n  float gpa;\n  char grade;\n\n  void display() {\n    int temp = rollNo;\n  }\n\n  float getGPA() {\n    float g = gpa;\n    return g;\n  }\n}\n\nint main() {\n  int count = 0;\n  return 0;\n}`
+};
+
+function loadSample(k) { document.getElementById('src').value = samples[k]; }
+
+async function checkBackend() {
+  try {
+    const r = await fetch(BACKEND + '/health', { signal: AbortSignal.timeout(2500) });
+    if (r.ok) { setStatus(true); return; }
+  } catch(_) {}
+  setStatus(false);
+}
+
+function setStatus(online) {
+  const dot = document.getElementById('status-dot');
+  const txt = document.getElementById('status-text');
+  dot.className = 'status-dot ' + (online ? 'online' : 'offline');
+  txt.textContent = online ? 'Backend connected' : 'Backend offline — run: python app.py';
+  txt.style.color = online ? '#22c55e' : '#f87171';
+}
+
+async function analyze() {
+  const src = document.getElementById('src').value.trim();
+  if (!src) { showErrs(['Please enter some source code.']); return; }
+
+  const btn = document.getElementById('analyze-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> &nbsp;Analyzing...';
+  clearDisplay();
+
+  try {
+    const res = await fetch(BACKEND + '/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: src })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      showErrs([err.error || 'Server error ' + res.status]);
+      return;
+    }
+
+    const data = await res.json();
+    symbols = data.symbols || [];
+
+    document.getElementById('s-total').textContent  = data.stats.total;
+    document.getElementById('s-vars').textContent   = data.stats.variables;
+    document.getElementById('s-fns').textContent    = data.stats.functions;
+    document.getElementById('s-scopes').textContent = new Set(symbols.map(s => s.scope)).size;
+
+    if (data.errors && data.errors.length) showErrs(data.errors);
+
+    renderTable();
+    renderTokens(data.tokens || []);
+    renderScopeTree();
+
+  } catch (e) {
+    showErrs(['Cannot reach backend. Make sure Flask is running: python app.py']);
+    setStatus(false);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '&#9654; &nbsp;Analyze';
+  }
+}
+
+function renderTable() {
+  const q  = (document.getElementById('search').value || '').toLowerCase();
+  const tf = document.getElementById('type-filter').value;
+  let rows = symbols;
+  if (q)  rows = rows.filter(s => s.name.toLowerCase().includes(q) || s.type.includes(q) || s.scope.toLowerCase().includes(q));
+  if (tf) rows = rows.filter(s => s.type === tf || (tf === 'function' && s.kind === 'function'));
+  if (scopeFilter === 'global')    rows = rows.filter(s => s.scope === 'global');
+  if (scopeFilter === 'local')     rows = rows.filter(s => s.scope !== 'global' && s.kind !== 'parameter');
+  if (scopeFilter === 'parameter') rows = rows.filter(s => s.kind === 'parameter');
+
+  const el = document.getElementById('symtab-content');
+  if (!rows.length) {
+    el.innerHTML = `<div class="empty-state" style="height:200px"><div class="empty-icon">&#8709;</div><div class="empty-text">No symbols match the filter</div></div>`;
+    return;
+  }
+  el.innerHTML = `<table>
+    <thead><tr><th>#</th><th>Name</th><th>Type</th><th>Scope</th><th>Line</th><th>Bytes</th><th>Value</th><th>Kind</th></tr></thead>
+    <tbody>${rows.map((s, i) => `<tr class="${s.kind==='unknown'?'row-unknown':''}">
+      <td class="num-col">${i+1}</td>
+      <td class="name-col">${esc(s.name)}</td>
+      <td><span class="badge ${typeBadge(s.type, s.kind)}">${s.kind==='function'?'fn':s.type}</span></td>
+      <td class="${s.scope==='global'?'scope-global':'scope-local'}">${esc(s.scope)}</td>
+      <td class="line-col">${s.line}</td>
+      <td class="mem-col">${s.mem||'--'}</td>
+      <td class="val-col">${esc(s.value||'--')}</td>
+      <td><span class="badge ${kindBadge(s.kind)}">${s.kind}</span></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function renderTokens(tokens) {
+  const el = document.getElementById('tok-content');
+  if (!tokens.length) return;
+  const show = tokens.slice(0, 200);
+  el.innerHTML = `<div class="tok-grid">
+    ${show.map(t => `<span class="tok tok-${t.type}" title="${t.type} @ line ${t.line}">${esc(t.value)}</span>`).join('')}
+    ${tokens.length > 200 ? `<span class="tok tok-PUNCT">+${tokens.length-200} more</span>` : ''}
+  </div>
+  <div style="margin-top:14px;font-size:11px;color:var(--text3);font-family:var(--mono)">${tokens.length} tokens total</div>`;
+}
+
+function renderScopeTree() {
+  const scopes = {};
+  symbols.forEach(s => { (scopes[s.scope] = scopes[s.scope] || []).push(s); });
+  const el = document.getElementById('scope-content');
+  if (!Object.keys(scopes).length) return;
+  el.innerHTML = Object.entries(scopes).map(([scope, syms]) => `
+    <div class="scope-node">
+      <div><span class="scope-name">${esc(scope)}</span><span class="scope-count">${syms.length} symbol${syms.length!==1?'s':''}</span></div>
+      ${syms.map(s => `<div class="scope-sym">&#9500;&#9472; <span class="sn">${esc(s.name)}</span><span style="color:var(--text3)"> : </span><span class="st">${s.type}</span><span class="sk"> [${s.kind}]</span>${s.value?` <span style="color:var(--text3)">= ${esc(s.value)}</span>`:''}</div>`).join('')}
+    </div>`).join('');
+}
+
+function showErrs(errs) {
+  document.getElementById('err-list').innerHTML = errs.map(e =>
+    `<div class="err-item"><div class="err-dot"></div>${esc(e)}</div>`).join('');
+}
+function clearDisplay() {
+  document.getElementById('err-list').innerHTML = '';
+  ['s-total','s-vars','s-fns','s-scopes'].forEach(id => document.getElementById(id).textContent = '--');
+}
+function clearAll() {
+  document.getElementById('src').value = '';
+  clearDisplay(); symbols = [];
+  document.getElementById('symtab-content').innerHTML = `<div class="empty-state" style="height:300px"><div class="empty-icon">&#8997;</div><div class="empty-text">Analyze some code to see the symbol table</div></div>`;
+  document.getElementById('tok-content').innerHTML = `<div class="empty-state" style="height:300px"><div class="empty-icon">&#10216;&#10217;</div><div class="empty-text">Tokens will appear here after analysis</div></div>`;
+  document.getElementById('scope-content').innerHTML = `<div class="empty-state" style="height:300px"><div class="empty-icon">&#8862;</div><div class="empty-text">Scope tree will appear here after analysis</div></div>`;
+}
+function setScopeF(v, el) {
+  scopeFilter = v;
+  document.querySelectorAll('.pill').forEach(b => b.classList.remove('active'));
+  el.classList.add('active'); renderTable();
+}
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-symtab').style.display = tab==='symtab' ? 'flex' : 'none';
+  document.getElementById('tab-tokens').style.display  = tab==='tokens'  ? 'block' : 'none';
+  document.getElementById('tab-scope').style.display   = tab==='scope'   ? 'block' : 'none';
+}
+function typeBadge(t, k) {
+  if (k==='function') return 'b-fn';
+  if (t==='unknown') return 'b-unknown';
+  return {int:'b-int',float:'b-float',char:'b-char',string:'b-string',bool:'b-bool',void:'b-void',double:'b-double'}[t]||'b-other';
+}
+function kindBadge(k) {
+  return {variable:'bk-variable',function:'bk-function',parameter:'bk-parameter',unknown:'bk-unknown',error:'bk-unknown'}[k]||'b-other';
+}
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+checkBackend();
+loadSample('basic');
+</script>
+</body>
+</html>
